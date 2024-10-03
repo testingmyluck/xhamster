@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HLS Player with PiP</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #player-container {
+            width: 100%;
+            max-width: 800px;
+            margin-top: 20px;
+            display: none;
+        }
+        video {
+            width: 100%;
+            height: auto;
+        }
+        #pipButton {
+            margin-top: 10px;
+        }
+        #videoLinkInput {
+            width: 80%;
+            padding: 10px;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+        #loadButton {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<h2>HLS Player with PiP and m3u8 Link Extraction</h2>
+
+<input type="text" id="videoLinkInput" placeholder="Enter the video page URL here">
+<button id="loadButton">Load Video</button>
+
+<div id="player-container">
+    <video id="video" controls></video>
+    <button id="pipButton">Enable Picture-in-Picture</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const video = document.getElementById('video');
+        const pipButton = document.getElementById('pipButton');
+        const loadButton = document.getElementById('loadButton');
+        const videoLinkInput = document.getElementById('videoLinkInput');
+        const playerContainer = document.getElementById('player-container');
+
+        // Load video on button click
+        loadButton.addEventListener('click', async () => {
+            const pageUrl = videoLinkInput.value;
+            if (!pageUrl) {
+                alert('Please enter a valid URL.');
+                return;
+            }
+
+            try {
+                // Call Flask API to get the m3u8 link
+                const response = await fetch(`/get-m3u8?url=${encodeURIComponent(pageUrl)}`);
+                const data = await response.json();
+
+                if (data.m3u8_url) {
+                    const m3u8Url = data.m3u8_url;
+
+                    // Display the player container
+                    playerContainer.style.display = 'block';
+
+                    // Initialize HLS.js with the found m3u8 link
+                    if (Hls.isSupported()) {
+                        const hls = new Hls();
+                        hls.loadSource(m3u8Url);
+                        hls.attachMedia(video);
+                        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                            video.play();
+                        });
+                    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = m3u8Url;
+                        video.addEventListener('loadedmetadata', () => {
+                            video.play();
+                        });
+                    }
+                } else {
+                    alert('m3u8 link not found.');
+                }
+            } catch (error) {
+                console.error('Error fetching m3u8 link:', error);
+                alert('Error fetching m3u8 link.');
+            }
+        });
+
+        // PiP button functionality
+        pipButton.addEventListener('click', async () => {
+            if (video !== document.pictureInPictureElement) {
+                try {
+                    await video.requestPictureInPicture();
+                } catch (error) {
+                    console.error(error);
+                }
+            } else {
+                await document.exitPictureInPicture();
+            }
+        });
+    });
+</script>
+</body>
+</html>
